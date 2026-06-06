@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "schedule": {
+    "fetch_fresh_data": false,
+    "max_hours_runtime": 8
+  },
+  "tokens": ["SYNTHETIC-ALPHA", "SYNTHETIC-BETA"],
+  "wfa": {
+    "num_folds": 6,
+    "test_fold_days": 30,
+    "min_events_per_fold": 5,
+    "warmup_bars": 30
+  },
+  "grid_search": {
+    "coarse": true,
+    "coarse_window_days": 30,
+    "fine_refinement_top_n": 20,
+    "darwinian_generations": 3,
+    "darwinian_population": 20
+  },
+  "overfitting": {
+    "max_is_oos_gap": 0.5,
+    "min_oos_consistency": 0.50,
+    "max_fragility": 0.4
+  },
+  "robustness": {
+    "enabled": false,
+    "top_n": 3,
+    "mc_simulations": 1000
+  },
+  "experiments": [],
+  "output_dir": "data/night_results",
+  "dry_run": true
+}

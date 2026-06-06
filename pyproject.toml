@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "night-shift-tokenomics"
+version = "0.1.0"
+description = "Systematic tokenomics research engine with brutal multi-gate validation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pyarrow>=15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+night-shift = "night_shift.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/night_shift"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
