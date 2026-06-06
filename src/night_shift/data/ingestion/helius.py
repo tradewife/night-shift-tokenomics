@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from night_shift.core.logging import log
 
-HELIUS_BASE = "https://api.helius.xyz/v0"
+HELIUS_BASE = "https://api-mainnet.helius-rpc.com/v0"
 DEFAULT_HISTORY_DAYS = 180
 DEFAULT_REQUEST_DELAY_S = 0.25
 MAX_RETRIES = 5
@@ -33,7 +33,7 @@ def fetch_address_transactions(
 
     params = {"api-key": key, "limit": str(limit)}
     if before:
-        params["before"] = before
+        params["before-signature"] = before
     url = f"{HELIUS_BASE}/addresses/{address}/transactions?{urllib.parse.urlencode(params)}"
 
     for attempt in range(MAX_RETRIES):
