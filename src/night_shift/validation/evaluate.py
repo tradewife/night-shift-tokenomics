@@ -14,6 +14,25 @@ from night_shift.scoring.fitness import (
     winsorize_scores,
 )
 from night_shift.validation.folds import Fold
+from night_shift.validation.gates import RegimeGate
+from night_shift.validation.regimes import annotate_fold_regimes, check_regime_gate
+
+
+def _regime_gate_from_config(of_config: Dict[str, Any]) -> RegimeGate:
+    regime_cfg = of_config.get("regime_gate", {})
+    return RegimeGate(
+        ENABLED=regime_cfg.get("enabled", True),
+        MIN_PROFITABLE_REGIMES=regime_cfg.get("min_profitable_regimes", 3),
+        MIN_REGIME_SCORE=regime_cfg.get("min_regime_score", 0.0),
+    )
+
+
+def _append_rejection(existing: str, new: str) -> str:
+    if not new:
+        return existing
+    if not existing:
+        return new
+    return f"{existing}; {new}"
 
 
 def _metrics_to_dict(is_metrics: WindowMetrics, oos_metrics: WindowMetrics) -> Dict[str, Any]:
@@ -135,14 +154,16 @@ def evaluate_candidate(
     rejection_reason = ""
     if overfitting_score > of_config.get("max_is_oos_gap", 0.5):
         rejected = True
-        rejection_reason = (
-            f"overfitting_score={overfitting_score:.2f} > {of_config.get('max_is_oos_gap', 0.5)}"
+        rejection_reason = _append_rejection(
+            rejection_reason,
+            f"overfitting_score={overfitting_score:.2f} > {of_config.get('max_is_oos_gap', 0.5)}",
         )
     if oos_consistency < of_config.get("min_oos_consistency", 0.50):
         rejected = True
-        rejection_reason = (
+        rejection_reason = _append_rejection(
+            rejection_reason,
             f"oos_consistency={oos_consistency:.0%} < "
-            f"{of_config.get('min_oos_consistency', 0.50):.0%}"
+            f"{of_config.get('min_oos_consistency', 0.50):.0%}",
         )
 
     fold_details = [
@@ -156,6 +177,14 @@ def evaluate_candidate(
         }
         for i, f in enumerate(fold_results)
     ]
+    fold_details = annotate_fold_regimes(events, fold_details, folds)
+
+    regime_gate = _regime_gate_from_config(of_config)
+    regime_passed, regime_summary = check_regime_gate(fold_details, regime_gate)
+    if regime_gate.ENABLED and not regime_passed:
+        rejected = True
+        for failure in regime_summary.get("failures", []):
+            rejection_reason = _append_rejection(rejection_reason, failure)
 
     return CandidateResult(
         token=token,
@@ -175,6 +204,7 @@ def evaluate_candidate(
         fragility=fragility,
         survivor_score=survivor_score,
         folds=fold_details,
+        regime_summary=regime_summary,
         rejected=rejected,
         rejection_reason=rejection_reason,
         is_coarse_only=len(fold_results) < 3,

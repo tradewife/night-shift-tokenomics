@@ -12,9 +12,18 @@ class ResilienceGate:
     MAX_OVERFITTING_RATIO: float = 0.5
     MIN_OOS_CONSISTENCY: float = 0.50
     MAX_DRAWDOWN_PCT: float = 40.0
-    MIN_PROFITABLE_REGIMES: int = 2
+    MIN_PROFITABLE_REGIMES: int = 3
     MAX_FRAGILITY: float = 0.4
     MIN_RESILIENCE_SCORE: float = 0.3
+
+
+@dataclass(frozen=True)
+class RegimeGate:
+    """Cross-regime consistency thresholds (SPEC §4 Gate 2)."""
+
+    ENABLED: bool = True
+    MIN_PROFITABLE_REGIMES: int = 3
+    MIN_REGIME_SCORE: float = 0.0
 
 
 @dataclass(frozen=True)

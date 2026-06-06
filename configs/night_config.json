@@ -31,6 +31,11 @@
     "min_oos_consistency": 0.50,
     "max_fragility": 0.4
   },
+  "regime_gate": {
+    "enabled": true,
+    "min_profitable_regimes": 3,
+    "min_regime_score": 0.0
+  },
   "robustness": {
     "enabled": true,
     "top_n": 3,

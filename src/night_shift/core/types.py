@@ -41,6 +41,7 @@ class CandidateResult:
     fragility: float
     survivor_score: float
     folds: List[Dict[str, Any]] = field(default_factory=list)
+    regime_summary: Dict[str, Any] = field(default_factory=dict)
     rejected: bool = False
     rejection_reason: str = ""
     is_coarse_only: bool = False

@@ -45,7 +45,10 @@ def run_night_shift(
     is_dry_run = dry_run if dry_run is not None else config.get("dry_run", True)
     data_config = config.get("data", {})
     wfa_config = config.get("wfa", {})
-    of_config = config.get("overfitting", {})
+    of_config = {
+        **config.get("overfitting", {}),
+        "regime_gate": config.get("regime_gate", {}),
+    }
     grid_config = config.get("grid_search", {})
     model = get_model(config.get("model", "tokenomics_mvp"), use_stub=is_dry_run)
 

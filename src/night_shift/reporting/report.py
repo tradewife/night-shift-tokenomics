@@ -100,6 +100,24 @@ def generate_report(
             for key, note in resilience.explainability.items():
                 lines.append(f"- {note}")
             lines.append("")
+        if candidate.regime_summary:
+            rs = candidate.regime_summary
+            lines.extend(
+                [
+                    f"| Regime Gate | {'PASS' if rs.get('gate_passed') else 'FAIL'} "
+                    f"({rs.get('profitable_count', 0)}/{rs.get('min_profitable_regimes', 3)} regimes) |",
+                    "",
+                ]
+            )
+            if rs.get("by_regime"):
+                lines.append("**Regime breakdown:**")
+                for regime, stats in sorted(rs["by_regime"].items()):
+                    status = "profitable" if stats.get("profitable") else "unprofitable"
+                    lines.append(
+                        f"- {regime}: {status}, folds={stats.get('folds', 0)}, "
+                        f"best_oos={stats.get('best_oos')}"
+                    )
+                lines.append("")
         lines.extend(
             [
                 "<details><summary>Parameters</summary>",
@@ -112,6 +130,29 @@ def generate_report(
                 "",
             ]
         )
+
+    regime_tokens = {
+        token: next(
+            (r.regime_summary for r in sorted(results, key=lambda x: x.survivor_score, reverse=True) if r.regime_summary),
+            None,
+        )
+        for token, results in all_results.items()
+    }
+    if any(regime_tokens.values()):
+        lines.extend(["## Regime Gate Results", ""])
+        for token, rs in regime_tokens.items():
+            if not rs:
+                continue
+            status = "PASS" if rs.get("gate_passed") else "FAIL"
+            profitable = ", ".join(rs.get("profitable_regimes", [])) or "none"
+            lines.append(
+                f"- **{token}**: {status} — "
+                f"profitable in {rs.get('profitable_count', 0)}/"
+                f"{rs.get('min_profitable_regimes', 3)} regimes [{profitable}]"
+            )
+            if not rs.get("gate_passed") and rs.get("failures"):
+                lines.append(f"  - {rs['failures'][0]}")
+        lines.append("")
 
     if robustness_results:
         lines.extend(["## Robustness Gate Results", ""])
@@ -164,6 +205,11 @@ def generate_report(
         "dry_run": config.get("dry_run", True),
         "tokens": list(all_results.keys()),
         "data_sources": data_sources or {},
+        "regime_gate_summary": {
+            token: rs
+            for token, rs in regime_tokens.items()
+            if rs
+        },
         "robustness_summary": {
             token: [
                 {
@@ -223,6 +269,7 @@ def generate_report(
                 "oos_consistency": r.oos_consistency,
                 "rejected": r.rejected,
                 "rejection_reason": r.rejection_reason,
+                "regime_summary": r.regime_summary,
                 "params": r.params,
             }
             for r in sorted(results, key=lambda x: x.survivor_score, reverse=True)[:50]
