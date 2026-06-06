@@ -3,14 +3,13 @@
 import time
 from typing import Dict, List, Optional
 
-import pandas as pd
-
 from night_shift.config.loader import load_config
 from night_shift.core.logging import log
 from night_shift.core.types import CandidateResult
 from night_shift.data.loader import load_token_data
 from night_shift.models.registry import get_model
 from night_shift.reporting.report import generate_report
+from night_shift.scoring.resilience import score_candidates
 from night_shift.search.darwinian import darwinian_evolution
 from night_shift.search.grid import coarse_grid_search, fine_refinement, run_experiments
 from night_shift.validation.evaluate import evaluate_candidate
@@ -21,39 +20,60 @@ def run_night_shift(
     config_path: Optional[str] = None,
     tokens: Optional[List[str]] = None,
     dry_run: Optional[bool] = None,
+    use_seed_dataset: bool = False,
+    seed_limit: Optional[int] = None,
+    fetch_fresh: bool = False,
 ) -> Dict:
     """
     Main entry point for the Night Shift Tokenomics research pipeline.
 
     Stages:
-      1. Data load
+      1. Data load (synthetic / cache / Helius / bootstrap)
       2. Walk-forward fold creation
       3. Coarse grid + fine refinement
       4. Darwinian evolution
-      5. Morning report
+      5. Morning report + Resilience Scores
     """
     start_time = time.time()
     config = load_config(config_path)
 
-    token_list = tokens or config.get("tokens", ["SYNTHETIC-ALPHA"])
+    token_list = tokens or config.get("tokens")
     is_dry_run = dry_run if dry_run is not None else config.get("dry_run", True)
+    data_config = config.get("data", {})
     wfa_config = config.get("wfa", {})
     of_config = config.get("overfitting", {})
     grid_config = config.get("grid_search", {})
-    model = get_model(config.get("model", "tokenomics_mvp"))
+    model = get_model(config.get("model", "tokenomics_mvp"), use_stub=is_dry_run)
 
     log("=" * 70)
     log("NIGHT SHIFT TOKENOMICS — Research Pipeline")
-    log(f"Tokens: {', '.join(token_list)}")
+    if use_seed_dataset or data_config.get("use_seed_dataset"):
+        log(f"Dataset: seed manifest (limit={seed_limit or data_config.get('seed_limit', 'all')})")
+    elif token_list:
+        log(f"Tokens: {', '.join(token_list)}")
     log(f"Model: {model.name}")
-    log(f"Mode: {'dry run' if is_dry_run else 'live'}")
+    log(f"Mode: {'dry run (stub evaluator)' if is_dry_run else 'live (real simulator)'}")
     log("=" * 70)
 
     # Stage 1: Data
     log("\n── Stage 1: Data ──")
-    token_data = load_token_data(token_list, dry_run=is_dry_run)
+    token_data = load_token_data(
+        tokens=token_list,
+        dry_run=is_dry_run,
+        fetch_fresh=fetch_fresh or data_config.get("fetch_fresh", False),
+        use_seed_dataset=use_seed_dataset or data_config.get("use_seed_dataset", False),
+        seed_limit=seed_limit or data_config.get("seed_limit"),
+        history_days=data_config.get("history_days", 180),
+        cache_dir=data_config.get("cache_dir"),
+        manifest_path=data_config.get("seed_manifest"),
+        data_config=data_config,
+    )
     if not token_data:
         raise RuntimeError("No token data loaded")
+
+    sources = {k: v.attrs.get("source", "?") for k, v in token_data.items()}
+    labels = {k: v.attrs.get("label", "?") for k, v in token_data.items()}
+    log(f"  Loaded {len(token_data)} tokens — sources: {sources}")
 
     # Stage 2: Walk-forward folds
     log("\n── Stage 2: Walk-Forward Folds ──")
@@ -65,7 +85,7 @@ def run_night_shift(
         warmup_bars=wfa_config.get("warmup_bars", 30),
         bars_per_day=wfa_config.get("bars_per_day", 1),
     )
-    log(f"Created {len(folds)} folds from {min_bars} bars")
+    log(f"Created {len(folds)} folds from {min_bars} daily bars")
     for fold in folds:
         log(
             f"  Fold {fold.fold_num}: train=[{fold.train_start_idx}:{fold.train_end_idx}] "
@@ -88,7 +108,7 @@ def run_night_shift(
         )
         all_results[token] = [baseline]
         log(
-            f"  {token}: OOS score={baseline.oos_score:+.3f} "
+            f"  {token} ({labels.get(token)}): OOS score={baseline.oos_score:+.3f} "
             f"consistency={baseline.oos_consistency:.0%} "
             f"survivor={baseline.survivor_score:.3f}"
         )
@@ -152,6 +172,17 @@ def run_night_shift(
             )
             all_results[token].extend(exp_results)
 
+    # Resilience scoring
+    log("\n── Stage 4d: Resilience Scoring ──")
+    resilience_rankings = {}
+    for token, results in all_results.items():
+        survivors = [r for r in results if not r.rejected]
+        if survivors:
+            top_survivors = sorted(survivors, key=lambda r: r.survivor_score, reverse=True)[:5]
+            resilience_rankings[token] = score_candidates(top_survivors)
+            best_r = resilience_rankings[token][0]
+            log(f"  {token}: top resilience={best_r['resilience_score']:.1f}/100")
+
     # Stage 5: Report
     log("\n── Stage 5: Morning Report ──")
     run_seconds = time.time() - start_time
@@ -160,6 +191,8 @@ def run_night_shift(
         config,
         run_seconds,
         output_dir=config.get("output_dir"),
+        resilience_rankings=resilience_rankings,
+        data_sources=sources,
     )
     log(f"Report written to {run_dir}")
     log(f"Total runtime: {run_seconds / 60:.1f} minutes")
@@ -183,5 +216,6 @@ def run_night_shift(
         "run_dir": str(run_dir),
         "runtime_seconds": run_seconds,
         "results": all_results,
+        "resilience_rankings": resilience_rankings,
         "best": best,
     }

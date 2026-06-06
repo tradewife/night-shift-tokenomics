@@ -4,7 +4,15 @@
     "fetch_fresh_data": false,
     "max_hours_runtime": 8
   },
-  "tokens": ["SYNTHETIC-ALPHA", "SYNTHETIC-BETA"],
+  "data": {
+    "seed_manifest": "data/seed_tokens.json",
+    "cache_dir": "data/tokens/cache",
+    "history_days": 180,
+    "fetch_fresh": false,
+    "use_seed_dataset": false,
+    "seed_limit": 10
+  },
+  "tokens": ["JUP", "BONK", "WIF"],
   "wfa": {
     "num_folds": 6,
     "test_fold_days": 30,
@@ -30,5 +38,5 @@
   },
   "experiments": [],
   "output_dir": "data/night_results",
-  "dry_run": true
+  "dry_run": false
 }

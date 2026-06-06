@@ -6,6 +6,7 @@ import pandas as pd
 
 from night_shift.models.base import DesignModel, WindowMetrics
 from night_shift.simulation.fast_evaluator import evaluate_design_stub
+from night_shift.simulation.tokenomics_sim import evaluate_design
 from night_shift.taxonomy.parameter_space import (
     COARSE_GRID,
     DEFAULT_PARAMS,
@@ -17,6 +18,9 @@ from night_shift.taxonomy.parameter_space import (
 
 class TokenomicsDesign(DesignModel):
     """Composite design model covering fee routing, supply, vesting, and governance."""
+
+    def __init__(self, use_stub: bool = False):
+        self._use_stub = use_stub
 
     @property
     def name(self) -> str:
@@ -63,5 +67,7 @@ class TokenomicsDesign(DesignModel):
         end_idx: int,
     ) -> WindowMetrics:
         validated = self.validate_params(params)
-        token = str(events.attrs.get("token", "unknown"))
-        return evaluate_design_stub(events, validated, start_idx, end_idx, token=token)
+        if self._use_stub:
+            token = str(events.attrs.get("token", "unknown"))
+            return evaluate_design_stub(events, validated, start_idx, end_idx, token=token)
+        return evaluate_design(events, validated, start_idx, end_idx)

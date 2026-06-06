@@ -4,6 +4,7 @@ import argparse
 import sys
 
 from night_shift.core.pipeline import run_night_shift
+from night_shift.data.loader import prefetch_seed_dataset
 
 
 def main() -> None:
@@ -19,7 +20,7 @@ def main() -> None:
         "--tokens",
         nargs="+",
         default=None,
-        help="Token identifiers to evaluate (overrides config)",
+        help="Token symbols or mints to evaluate (overrides config)",
     )
     parser.add_argument(
         "--dry-run",
@@ -30,7 +31,28 @@ def main() -> None:
     parser.add_argument(
         "--no-dry-run",
         action="store_true",
-        help="Attempt live data ingestion (not yet implemented)",
+        help="Use real simulator with cached/bootstrapped/Helius data",
+    )
+    parser.add_argument(
+        "--seed-dataset",
+        action="store_true",
+        help="Evaluate all tokens from data/seed_tokens.json",
+    )
+    parser.add_argument(
+        "--seed-limit",
+        type=int,
+        default=None,
+        help="Limit number of seed tokens to evaluate",
+    )
+    parser.add_argument(
+        "--fetch",
+        action="store_true",
+        help="Force fresh fetch from Helius (requires HELIUS_API_KEY)",
+    )
+    parser.add_argument(
+        "--prefetch",
+        action="store_true",
+        help="Prefetch and cache seed token data, then exit",
     )
 
     args = parser.parse_args()
@@ -42,10 +64,23 @@ def main() -> None:
         dry_run = False
 
     try:
+        if args.prefetch:
+            sources = prefetch_seed_dataset(
+                limit=args.seed_limit,
+                fetch_fresh=args.fetch or True,
+            )
+            print(f"Prefetched {len(sources)} tokens:")
+            for symbol, source in sources.items():
+                print(f"  {symbol}: {source}")
+            return
+
         result = run_night_shift(
             config_path=args.config,
             tokens=args.tokens,
             dry_run=dry_run,
+            use_seed_dataset=args.seed_dataset,
+            seed_limit=args.seed_limit,
+            fetch_fresh=args.fetch,
         )
         print(f"\nDone. Results: {result['run_dir']}", flush=True)
     except NotImplementedError as exc:
