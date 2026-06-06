@@ -17,17 +17,21 @@ def load_security_risk_feed(path: str | Path | None) -> dict[str, Any] | None:
 
 
 def _matches_trigger(params: dict[str, Any], key: str, value: Any) -> bool:
-    param_val = params.get(key)
-    if param_val is None:
-        return False
-    if isinstance(value, list):
-        return param_val in value
     if key.endswith("_max"):
         base = key[: -len("_max")]
-        return float(params.get(base, 999)) <= float(value)
+        if base not in params:
+            return False
+        return float(params[base]) <= float(value)
     if key.endswith("_min"):
         base = key[: -len("_min")]
-        return float(params.get(base, 0)) >= float(value)
+        if base not in params:
+            return False
+        return float(params[base]) >= float(value)
+    if key not in params:
+        return False
+    param_val = params[key]
+    if isinstance(value, list):
+        return param_val in value
     return param_val == value
 
 

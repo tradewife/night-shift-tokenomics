@@ -48,5 +48,9 @@
   },
   "experiments": [],
   "output_dir": "data/night_results",
+  "security_bridge": {
+    "enabled": false,
+    "risk_feed_path": "../night-shift-security/data/security_results/bridge/tokenomics_risk_feed.json"
+  },
   "dry_run": false
 }

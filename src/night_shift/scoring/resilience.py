@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
+from night_shift.bridge.security import compute_security_penalty
 from night_shift.core.types import CandidateResult
 
 
@@ -18,7 +19,10 @@ class ResilienceComponents:
     explainability: Dict[str, str] = field(default_factory=dict)
 
 
-def compute_resilience_score(candidate: CandidateResult) -> ResilienceComponents:
+def compute_resilience_score(
+    candidate: CandidateResult,
+    security_feed: dict | None = None,
+) -> ResilienceComponents:
     """
     Compute a 0–100 Resilience Score with explainability from candidate metrics.
     """
@@ -41,6 +45,8 @@ def compute_resilience_score(candidate: CandidateResult) -> ResilienceComponents
             + {"timelock": 15, "autonomous": 10, "multisig": 8, "governance": 3}.get(treasury_control, 0),
         ),
     )
+    security_penalty, security_explain = compute_security_penalty(params, security_feed)
+    attack_resistance = max(0, attack_resistance - security_penalty)
     stress_sustainability = min(100, max(0, (1 - candidate.oos_max_dd / 100) * 60 + candidate.oos_consistency * 40))
     transparency = min(
         100,
@@ -66,6 +72,7 @@ def compute_resilience_score(candidate: CandidateResult) -> ResilienceComponents
         explainability["consistency"] = "Low cross-fold consistency suggests fragility"
     if candidate.overfitting_score > 0.4:
         explainability["overfitting"] = "High IS/OOS gap indicates narrative overfitting risk"
+    explainability.update(security_explain)
 
     return ResilienceComponents(
         value_accrual=round(value_accrual, 1),
@@ -79,11 +86,14 @@ def compute_resilience_score(candidate: CandidateResult) -> ResilienceComponents
     )
 
 
-def score_candidates(candidates: List[CandidateResult]) -> List[Dict[str, Any]]:
+def score_candidates(
+    candidates: List[CandidateResult],
+    security_feed: dict | None = None,
+) -> List[Dict[str, Any]]:
     """Attach resilience scores to a list of candidates."""
     scored = []
     for candidate in candidates:
-        components = compute_resilience_score(candidate)
+        components = compute_resilience_score(candidate, security_feed=security_feed)
         scored.append(
             {
                 "token": candidate.token,

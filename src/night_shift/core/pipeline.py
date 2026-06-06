@@ -3,6 +3,7 @@
 import time
 from typing import Dict, List, Optional
 
+from night_shift.bridge.security import load_security_risk_feed
 from night_shift.config.loader import load_config
 from night_shift.core.logging import log
 from night_shift.core.types import CandidateResult
@@ -196,14 +197,23 @@ def run_night_shift(
         total = sum(len(v) for v in robustness_results.values())
         log(f"  Robustness: {passed}/{total} candidates passed all gates")
 
-    # Resilience scoring
+    # Resilience scoring (optionally penalized by Security-track risk feed)
     log("\n── Stage 4e: Resilience Scoring ──")
+    security_cfg = config.get("security_bridge", {})
+    security_feed = None
+    if security_cfg.get("enabled", False):
+        security_feed = load_security_risk_feed(security_cfg.get("risk_feed_path"))
+        if security_feed:
+            log(f"  Security bridge: {security_feed.get('findings_count', 0)} findings loaded")
+        else:
+            log("  Security bridge: enabled but risk feed not found")
+
     resilience_rankings = {}
     for token, results in all_results.items():
         survivors = [r for r in results if not r.rejected]
         if survivors:
             top_survivors = sorted(survivors, key=lambda r: r.survivor_score, reverse=True)[:5]
-            resilience_rankings[token] = score_candidates(top_survivors)
+            resilience_rankings[token] = score_candidates(top_survivors, security_feed=security_feed)
             best_r = resilience_rankings[token][0]
             log(f"  {token}: top resilience={best_r['resilience_score']:.1f}/100")
 
