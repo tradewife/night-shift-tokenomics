@@ -10,9 +10,10 @@ from typing import Any, Dict, List, Optional
 
 from night_shift.core.logging import log
 
-
 HELIUS_BASE = "https://api.helius.xyz/v0"
 DEFAULT_HISTORY_DAYS = 180
+DEFAULT_REQUEST_DELAY_S = 0.25
+MAX_RETRIES = 5
 
 
 def get_api_key() -> Optional[str]:
@@ -35,17 +36,27 @@ def fetch_address_transactions(
         params["before"] = before
     url = f"{HELIUS_BASE}/addresses/{address}/transactions?{urllib.parse.urlencode(params)}"
 
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode())
-            return data if isinstance(data, list) else []
-    except urllib.error.HTTPError as exc:
-        log(f"  Helius HTTP {exc.code} for {address[:12]}...")
-        return []
-    except urllib.error.URLError as exc:
-        log(f"  Helius network error: {exc.reason}")
-        return []
+    for attempt in range(MAX_RETRIES):
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                data = json.loads(resp.read().decode())
+                return data if isinstance(data, list) else []
+        except urllib.error.HTTPError as exc:
+            if exc.code in (429, 500, 502, 503, 504) and attempt < MAX_RETRIES - 1:
+                sleep_s = DEFAULT_REQUEST_DELAY_S * (2**attempt)
+                log(f"  Helius HTTP {exc.code} for {address[:12]}... retry in {sleep_s:.1f}s")
+                time.sleep(sleep_s)
+                continue
+            log(f"  Helius HTTP {exc.code} for {address[:12]}...")
+            return []
+        except urllib.error.URLError as exc:
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(DEFAULT_REQUEST_DELAY_S * (2**attempt))
+                continue
+            log(f"  Helius network error: {exc.reason}")
+            return []
+    return []
 
 
 def extract_transfer_events(transactions: List[Dict[str, Any]], mint: str) -> List[Dict[str, Any]]:
@@ -83,12 +94,12 @@ def fetch_token_daily_history(
     mint: str,
     days: int = DEFAULT_HISTORY_DAYS,
     api_key: Optional[str] = None,
-    max_pages: int = 5,
+    max_pages: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Paginate Helius transactions and return raw transfer events.
+    Paginate Helius transactions until history cutoff or pagination ends.
 
-    Limited pagination keeps fetch cost reasonable for overnight runs.
+    max_pages=None paginates until cutoff (recommended for batch backfill).
     """
     key = api_key or get_api_key()
     if not key:
@@ -97,9 +108,14 @@ def fetch_token_daily_history(
     all_events: List[Dict[str, Any]] = []
     before: Optional[str] = None
     cutoff = time.time() - days * 86400
+    page = 0
 
-    for _ in range(max_pages):
+    while True:
+        if max_pages is not None and page >= max_pages:
+            break
+
         txs = fetch_address_transactions(mint, api_key=key, limit=100, before=before)
+        page += 1
         if not txs:
             break
 
@@ -111,6 +127,6 @@ def fetch_token_daily_history(
         before = txs[-1].get("signature")
         if not before:
             break
-        time.sleep(0.15)
+        time.sleep(DEFAULT_REQUEST_DELAY_S)
 
     return [e for e in all_events if e.get("timestamp", 0) >= cutoff]

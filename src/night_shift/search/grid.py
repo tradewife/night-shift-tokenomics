@@ -1,5 +1,6 @@
 """Parameter grid generation and search stages."""
 
+import hashlib
 from itertools import product
 from typing import Callable, Dict, List, Optional
 
@@ -19,6 +20,25 @@ def grid_combos(grid: Dict[str, List]) -> List[Dict]:
     return [dict(zip(keys, combo)) for combo in product(*values)]
 
 
+def sample_grid_combos(
+    grid: Dict[str, List],
+    sample_size: int,
+    *,
+    seed: int = 42,
+    token: str = "",
+) -> List[Dict]:
+    """Deterministic stratified sample of grid combos (stable across reruns)."""
+    combos = grid_combos(grid)
+    if sample_size <= 0 or sample_size >= len(combos):
+        return combos
+
+    digest = hashlib.sha256(f"{seed}:{token}".encode()).hexdigest()
+    local_seed = int(digest[:8], 16)
+    rng = __import__("random").Random(local_seed)
+    indices = sorted(rng.sample(range(len(combos)), sample_size))
+    return [combos[i] for i in indices]
+
+
 def coarse_grid_search(
     events: pd.DataFrame,
     folds: List[Fold],
@@ -28,10 +48,19 @@ def coarse_grid_search(
     coarse_window_days: int = 30,
     bars_per_day: int = 1,
     base_params: Optional[Dict] = None,
+    coarse_sample_size: Optional[int] = None,
+    coarse_sample_seed: int = 42,
 ) -> List[CandidateResult]:
     """Stage 1: fast single-window evaluation for rough ordering."""
-    combos = grid_combos(model.param_grid(phase="coarse"))
-    log(f"  Coarse grid: {len(combos)} combos for {token}")
+    grid = model.param_grid(phase="coarse")
+    if coarse_sample_size:
+        combos = sample_grid_combos(
+            grid, coarse_sample_size, seed=coarse_sample_seed, token=token
+        )
+        log(f"  Coarse grid: {len(combos)} sampled combos for {token}")
+    else:
+        combos = grid_combos(grid)
+        log(f"  Coarse grid: {len(combos)} combos for {token}")
 
     window_bars = coarse_window_days * bars_per_day
     if len(events) > window_bars:

@@ -1,0 +1,69 @@
+{
+  "version": "1.0",
+  "description": "Batch classification profile for 51-token Observatory export",
+  "data": {
+    "seed_manifest": "data/seed_tokens.json",
+    "cache_dir": "data/tokens/cache",
+    "history_days": 270,
+    "fetch_fresh": false,
+    "use_seed_dataset": true
+  },
+  "wfa": {
+    "num_folds": 6,
+    "test_fold_days": 30,
+    "min_events_per_fold": 5,
+    "warmup_bars": 30
+  },
+  "grid_search": {
+    "coarse": true,
+    "coarse_window_days": 30,
+    "coarse_sample_size": 512,
+    "coarse_sample_seed": 42,
+    "fine_refinement_top_n": 5,
+    "darwinian_generations": 0,
+    "darwinian_population": 20
+  },
+  "overfitting": {
+    "max_is_oos_gap": 0.5,
+    "min_oos_consistency": 0.50,
+    "max_fragility": 0.4
+  },
+  "regime_gate": {
+    "enabled": true,
+    "min_profitable_regimes": 3,
+    "min_regime_score": 0.0
+  },
+  "robustness": {
+    "enabled": true,
+    "top_n": 1,
+    "mc_simulations": 500,
+    "cpcv_variants": 12,
+    "cpcv_test_folds": 2,
+    "position_pct": 1.0,
+    "max_mc_dd_p95": 40.0,
+    "max_prob_dd_gt_30": 0.25,
+    "max_pbo": 0.30,
+    "caution_pbo": 0.15,
+    "max_param_sensitivity": 0.4,
+    "min_return_p10": -50.0,
+    "reject_on_fail": true
+  },
+  "agent_simulation": {
+    "enabled": true,
+    "top_n": 1,
+    "simulation_days": 90,
+    "scenarios": ["baseline", "sell_pressure", "governance_attack"],
+    "min_attack_surface": 40.0,
+    "min_scenario_attack_surface": 25.0,
+    "max_death_spiral_prob": 0.34,
+    "reject_on_fail": true,
+    "seed": 42
+  },
+  "security_bridge": {
+    "enabled": false
+  },
+  "experiments": [],
+  "output_dir": "data/night_results",
+  "export_dir": "data/exports",
+  "dry_run": false
+}

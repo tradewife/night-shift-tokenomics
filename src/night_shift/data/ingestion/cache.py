@@ -34,9 +34,11 @@ def write_cache(
     metadata: Optional[dict] = None,
 ) -> Path:
     path = cache_path(mint, cache_dir)
+    tmp = path.with_suffix(".parquet.tmp")
     out = df.copy()
     if metadata:
         for key, value in metadata.items():
             out.attrs[key] = value
-    out.to_parquet(path, index=False)
+    out.to_parquet(tmp, index=False)
+    tmp.replace(path)
     return path

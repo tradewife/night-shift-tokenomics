@@ -132,42 +132,49 @@ def run_night_shift(
                 of_config,
                 coarse_window_days=grid_config.get("coarse_window_days", 30),
                 bars_per_day=wfa_config.get("bars_per_day", 1),
+                coarse_sample_size=grid_config.get("coarse_sample_size"),
+                coarse_sample_seed=grid_config.get("coarse_sample_seed", 42),
             )
             all_results[token].extend(coarse_results)
 
     # Stage 3b: Fine refinement
-    log("\n── Stage 3b: Fine Refinement ──")
     top_n = grid_config.get("fine_refinement_top_n", 20)
-    for token, events in token_data.items():
-        top_candidates = sorted(
-            all_results[token],
-            key=lambda r: r.survivor_score,
-            reverse=True,
-        )[:top_n]
-        fine_results = fine_refinement(
-            events, folds, token, model, top_candidates, of_config
-        )
-        all_results[token].extend(fine_results)
+    if top_n > 0:
+        log("\n── Stage 3b: Fine Refinement ──")
+        for token, events in token_data.items():
+            top_candidates = sorted(
+                all_results[token],
+                key=lambda r: r.survivor_score,
+                reverse=True,
+            )[:top_n]
+            fine_results = fine_refinement(
+                events, folds, token, model, top_candidates, of_config
+            )
+            all_results[token].extend(fine_results)
 
     # Stage 4: Darwinian
-    log("\n── Stage 4: Darwinian Evolution ──")
-    darwinian_config = {
-        "darwinian_generations": grid_config.get("darwinian_generations", 3),
-        "darwinian_population": grid_config.get("darwinian_population", 20),
-        "perturbation_range": (0.05, 0.15),
-        "darwinian_offspring": 3,
-    }
-    for token, events in token_data.items():
-        evolved = darwinian_evolution(
-            events,
-            folds,
-            token,
-            model,
-            all_results[token],
-            of_config,
-            darwinian_config,
-        )
-        all_results[token].extend(evolved)
+    darwinian_generations = grid_config.get("darwinian_generations", 3)
+    if darwinian_generations > 0:
+        log("\n── Stage 4: Darwinian Evolution ──")
+        darwinian_config = {
+            "darwinian_generations": darwinian_generations,
+            "darwinian_population": grid_config.get("darwinian_population", 20),
+            "perturbation_range": (0.05, 0.15),
+            "darwinian_offspring": 3,
+        }
+        for token, events in token_data.items():
+            evolved = darwinian_evolution(
+                events,
+                folds,
+                token,
+                model,
+                all_results[token],
+                of_config,
+                darwinian_config,
+            )
+            all_results[token].extend(evolved)
+    else:
+        log("\n── Stage 4: Darwinian Evolution (skipped) ──")
 
     # Stage 4c: Experiments
     experiments = config.get("experiments", [])
