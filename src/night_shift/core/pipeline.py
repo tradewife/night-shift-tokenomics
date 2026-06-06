@@ -16,6 +16,7 @@ from night_shift.search.grid import coarse_grid_search, fine_refinement, run_exp
 from night_shift.reporting.artifacts import get_run_dir
 from night_shift.validation.evaluate import evaluate_candidate
 from night_shift.validation.folds import create_folds
+from night_shift.validation.agent_stress import run_agent_stress_phase
 from night_shift.validation.robustness import run_robustness_phase
 
 
@@ -197,8 +198,33 @@ def run_night_shift(
         total = sum(len(v) for v in robustness_results.values())
         log(f"  Robustness: {passed}/{total} candidates passed all gates")
 
+    # Stage 5: Agent stress simulation (attack surface gate)
+    agent_stress_results: Dict = {}
+    stress_by_params: Dict = {}
+    if config.get("agent_simulation", {}).get("enabled", False):
+        log("\n── Stage 5: Agent Stress Simulation ──")
+        run_dir = get_run_dir(config.get("output_dir"))
+        agent_stress_results = run_agent_stress_phase(
+            token_data,
+            all_results,
+            config,
+            output_dir=run_dir / "agent_stress",
+        )
+        stress_by_params = agent_stress_results.pop("_by_params", {})
+        passed = sum(
+            1
+            for token_results in agent_stress_results.values()
+            if isinstance(token_results, list)
+            for r in token_results
+            if r.get("passed")
+        )
+        total = sum(
+            len(v) for k, v in agent_stress_results.items() if k != "_by_params"
+        )
+        log(f"  Agent stress: {passed}/{total} candidates passed attack surface gates")
+
     # Resilience scoring (optionally penalized by Security-track risk feed)
-    log("\n── Stage 4e: Resilience Scoring ──")
+    log("\n── Stage 5b: Resilience Scoring ──")
     security_cfg = config.get("security_bridge", {})
     security_feed = None
     if security_cfg.get("enabled", False):
@@ -213,12 +239,16 @@ def run_night_shift(
         survivors = [r for r in results if not r.rejected]
         if survivors:
             top_survivors = sorted(survivors, key=lambda r: r.survivor_score, reverse=True)[:5]
-            resilience_rankings[token] = score_candidates(top_survivors, security_feed=security_feed)
+            resilience_rankings[token] = score_candidates(
+                top_survivors,
+                security_feed=security_feed,
+                agent_stress_by_params=stress_by_params or None,
+            )
             best_r = resilience_rankings[token][0]
             log(f"  {token}: top resilience={best_r['resilience_score']:.1f}/100")
 
-    # Stage 5: Report
-    log("\n── Stage 5: Morning Report ──")
+    # Stage 6: Report
+    log("\n── Stage 6: Morning Report ──")
     run_seconds = time.time() - start_time
     run_dir = generate_report(
         all_results,
@@ -228,6 +258,8 @@ def run_night_shift(
         resilience_rankings=resilience_rankings,
         data_sources=sources,
         robustness_results=robustness_results,
+        agent_stress_results=agent_stress_results,
+        security_feed=security_feed,
     )
     log(f"Report written to {run_dir}")
     log(f"Total runtime: {run_seconds / 60:.1f} minutes")
@@ -253,5 +285,6 @@ def run_night_shift(
         "results": all_results,
         "resilience_rankings": resilience_rankings,
         "robustness_results": robustness_results,
+        "agent_stress_results": agent_stress_results,
         "best": best,
     }

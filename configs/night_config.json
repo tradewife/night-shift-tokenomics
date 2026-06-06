@@ -48,6 +48,17 @@
   },
   "experiments": [],
   "output_dir": "data/night_results",
+  "agent_simulation": {
+    "enabled": true,
+    "top_n": 3,
+    "simulation_days": 90,
+    "scenarios": ["baseline", "sell_pressure", "governance_attack"],
+    "min_attack_surface": 40.0,
+    "min_scenario_attack_surface": 25.0,
+    "max_death_spiral_prob": 0.34,
+    "reject_on_fail": true,
+    "seed": 42
+  },
   "security_bridge": {
     "enabled": false,
     "risk_feed_path": "../night-shift-security/data/security_results/bridge/tokenomics_risk_feed.json"

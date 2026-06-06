@@ -15,6 +15,21 @@ def _top_candidates(all_results: Dict[str, List[CandidateResult]], n: int = 10) 
     return sorted(flat, key=lambda r: r.survivor_score, reverse=True)[:n]
 
 
+def _stress_for_candidate(
+    candidate: CandidateResult,
+    agent_stress_results: Optional[Dict[str, List[Dict[str, Any]]]],
+) -> Optional[Dict[str, Any]]:
+    if not agent_stress_results:
+        return None
+    for analyses in agent_stress_results.values():
+        if not isinstance(analyses, list):
+            continue
+        for analysis in analyses:
+            if analysis.get("params") == candidate.params:
+                return analysis
+    return None
+
+
 def generate_report(
     all_results: Dict[str, List[CandidateResult]],
     config: Dict,
@@ -23,6 +38,8 @@ def generate_report(
     resilience_rankings: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     data_sources: Optional[Dict[str, str]] = None,
     robustness_results: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+    agent_stress_results: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+    security_feed: Optional[Dict[str, Any]] = None,
 ) -> Path:
     """Write markdown report and JSON summary to the run directory."""
     run_dir = get_run_dir(output_dir)
@@ -53,7 +70,11 @@ def generate_report(
     lines.extend(["## Top Candidates", ""])
 
     for i, candidate in enumerate(top, 1):
-        resilience = compute_resilience_score(candidate)
+        resilience = compute_resilience_score(
+            candidate,
+            security_feed=security_feed,
+            agent_stress=_stress_for_candidate(candidate, agent_stress_results),
+        )
         lines.extend(
             [
                 f"### #{i}: {candidate.token} (Survivor: {candidate.survivor_score:.3f})",
@@ -61,6 +82,10 @@ def generate_report(
                 "| Metric | Value |",
                 "|--------|-------|",
                 f"| Resilience Score | {resilience.total:.1f}/100 |",
+                f"| Attack Resistance (base) | {resilience.attack_resistance_base:.1f} |",
+                f"| Security Penalty | -{resilience.security_penalty:.1f} |",
+                f"| Attack Resistance (final) | {resilience.attack_resistance:.1f} |",
+                f"| Agent Attack Surface | {resilience.agent_attack_surface:.1f}/100 |",
                 f"| OOS Score | {candidate.oos_score:+.3f} |",
                 f"| OOS Consistency | {candidate.oos_consistency:.0%} |",
                 f"| OOS PnL | {candidate.oos_pnl:+.2f}% |",
@@ -106,6 +131,19 @@ def generate_report(
             )
         lines.append("")
 
+    if agent_stress_results:
+        lines.extend(["## Agent Stress Simulation", ""])
+        for token, analyses in agent_stress_results.items():
+            if token == "_by_params" or not analyses:
+                continue
+            best = analyses[0]
+            lines.append(
+                f"- **{token}**: {best.get('verdict', 'N/A')} — "
+                f"attack_surface={best.get('aggregate_attack_surface', 0):.0f}, "
+                f"death_spiral_p={best.get('death_spiral_prob', 0):.0%}"
+            )
+        lines.append("")
+
     if resilience_rankings:
         lines.extend(["## Resilience Rankings by Token", ""])
         for token, rankings in resilience_rankings.items():
@@ -139,12 +177,29 @@ def generate_report(
             ]
             for token, analyses in (robustness_results or {}).items()
         },
+        "agent_stress_summary": {
+            token: [
+                {
+                    "verdict": a.get("verdict"),
+                    "passed": a.get("passed"),
+                    "aggregate_attack_surface": a.get("aggregate_attack_surface"),
+                    "death_spiral_prob": a.get("death_spiral_prob"),
+                }
+                for a in analyses
+            ]
+            for token, analyses in (agent_stress_results or {}).items()
+            if token != "_by_params"
+        },
         "top_candidates": [
             {
                 "rank": i,
                 "token": c.token,
                 "survivor_score": c.survivor_score,
-                "resilience_score": compute_resilience_score(c).total,
+                "resilience_score": compute_resilience_score(
+                    c,
+                    security_feed=security_feed,
+                    agent_stress=_stress_for_candidate(c, agent_stress_results),
+                ).total,
                 "oos_score": c.oos_score,
                 "oos_consistency": c.oos_consistency,
                 "params": c.params,
@@ -159,7 +214,11 @@ def generate_report(
         token: [
             {
                 "survivor_score": r.survivor_score,
-                "resilience_score": compute_resilience_score(r).total,
+                "resilience_score": compute_resilience_score(
+                    r,
+                    security_feed=security_feed,
+                    agent_stress=_stress_for_candidate(r, agent_stress_results),
+                ).total,
                 "oos_score": r.oos_score,
                 "oos_consistency": r.oos_consistency,
                 "rejected": r.rejected,
@@ -181,8 +240,11 @@ def generate_report(
                     "components": {
                         "value_accrual": r["components"].value_accrual,
                         "holder_retention": r["components"].holder_retention,
+                        "attack_resistance_base": r["components"].attack_resistance_base,
+                        "security_penalty": r["components"].security_penalty,
                         "attack_resistance": r["components"].attack_resistance,
                         "stress_sustainability": r["components"].stress_sustainability,
+                        "agent_attack_surface": r["components"].agent_attack_surface,
                         "transparency": r["components"].transparency,
                         "extraction_penalty": r["components"].extraction_penalty,
                     },

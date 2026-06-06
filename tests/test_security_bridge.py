@@ -97,8 +97,11 @@ def test_resilience_score_reduced_with_security_feed():
     )
     without = compute_resilience_score(candidate)
     with_feed = compute_resilience_score(candidate, security_feed=_sample_risk_feed())
+    assert with_feed.attack_resistance_base == without.attack_resistance_base
+    assert with_feed.security_penalty == 40.0
     assert with_feed.attack_resistance < without.attack_resistance
     assert with_feed.total <= without.total
+    assert "security_penalty" in with_feed.explainability
     assert any(k.startswith("security_") for k in with_feed.explainability)
 
 
