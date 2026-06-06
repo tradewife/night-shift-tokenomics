@@ -13,6 +13,7 @@ from night_shift.data.backfill_manifest import (
     update_token_record,
 )
 from night_shift.data.ingestion.cache import read_cache
+from night_shift.data.ingestion.helius import get_api_key
 from night_shift.data.ingestion.meta import build_meta_payload, write_meta
 from night_shift.data.loader import _load_single_token
 from night_shift.data.regime_preflight import preflight_regime_distribution
@@ -63,13 +64,18 @@ def run_backfill_phase(
         log(f"  [{symbol}] Backfill attempt {attempts}...")
 
         try:
+            cached_bars = len(read_cache(mint, cache_path) or [])
+            target_bars = max(min_bars, int(history_days * 0.85))
+            needs_fetch = force or cached_bars < target_bars
             df = _load_single_token(
                 entry,
                 dry_run=False,
-                fetch_fresh=force,
+                fetch_fresh=needs_fetch,
                 history_days=history_days,
                 cache_dir=cache_path,
             )
+            if needs_fetch and df.attrs.get("source") == "bootstrap" and get_api_key():
+                log(f"  [{symbol}] Helius returned no events; using bootstrap fallback")
             source = df.attrs.get("source", "unknown")
             bars = len(df)
             preflight = preflight_regime_distribution(

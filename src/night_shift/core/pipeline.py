@@ -44,6 +44,7 @@ def run_night_shift(
     token_list = tokens or config.get("tokens")
     is_dry_run = dry_run if dry_run is not None else config.get("dry_run", True)
     data_config = config.get("data", {})
+    use_seed = (use_seed_dataset or data_config.get("use_seed_dataset", False)) and not tokens
     wfa_config = config.get("wfa", {})
     of_config = {
         **config.get("overfitting", {}),
@@ -54,7 +55,7 @@ def run_night_shift(
 
     log("=" * 70)
     log("NIGHT SHIFT TOKENOMICS — Research Pipeline")
-    if use_seed_dataset or data_config.get("use_seed_dataset"):
+    if use_seed:
         log(f"Dataset: seed manifest (limit={seed_limit or data_config.get('seed_limit', 'all')})")
     elif token_list:
         log(f"Tokens: {', '.join(token_list)}")
@@ -68,7 +69,7 @@ def run_night_shift(
         tokens=token_list,
         dry_run=is_dry_run,
         fetch_fresh=fetch_fresh or data_config.get("fetch_fresh", False),
-        use_seed_dataset=use_seed_dataset or data_config.get("use_seed_dataset", False),
+        use_seed_dataset=use_seed,
         seed_limit=seed_limit or data_config.get("seed_limit"),
         history_days=data_config.get("history_days", 180),
         cache_dir=data_config.get("cache_dir"),

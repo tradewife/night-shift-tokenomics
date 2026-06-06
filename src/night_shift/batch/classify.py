@@ -138,6 +138,7 @@ def run_classify_phase(
                 tokens=[symbol],
                 dry_run=False,
                 fetch_fresh=False,
+                use_seed_dataset=False,
             )
             backfill_record = backfill_manifest.get("tokens", {}).get(symbol, {})
             dataset_record = build_token_export_record(

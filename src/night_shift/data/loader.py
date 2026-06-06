@@ -50,9 +50,13 @@ def _load_single_token(
         log(f"  [{symbol}] Loaded {len(cached)} days from cache")
         return _attach_metadata(validate_daily_bars(cached), token_entry, "cache")
 
-    if fetch_fresh or get_api_key():
-        log(f"  [{symbol}] Fetching from Helius...")
-        events = fetch_token_daily_history(mint, days=history_days)
+    api_key = get_api_key()
+    if fetch_fresh or api_key:
+        if not api_key:
+            log(f"  [{symbol}] Helius skipped (HELIUS_API_KEY not set)")
+        else:
+            log(f"  [{symbol}] Fetching from Helius...")
+        events = fetch_token_daily_history(mint, days=history_days) if api_key else []
         if events:
             df = aggregate_transfers_to_daily(events, days=history_days)
             df = validate_daily_bars(df)
