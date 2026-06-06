@@ -32,9 +32,19 @@
     "max_fragility": 0.4
   },
   "robustness": {
-    "enabled": false,
+    "enabled": true,
     "top_n": 3,
-    "mc_simulations": 1000
+    "mc_simulations": 1000,
+    "cpcv_variants": 12,
+    "cpcv_test_folds": 2,
+    "position_pct": 1.0,
+    "max_mc_dd_p95": 40.0,
+    "max_prob_dd_gt_30": 0.25,
+    "max_pbo": 0.30,
+    "caution_pbo": 0.15,
+    "max_param_sensitivity": 0.4,
+    "min_return_p10": -50.0,
+    "reject_on_fail": true
   },
   "experiments": [],
   "output_dir": "data/night_results",

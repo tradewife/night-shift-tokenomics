@@ -1,4 +1,4 @@
-"""Promotion and rejection gates for validated tokenomic designs."""
+"""Promotion, rejection, and robustness gate thresholds."""
 
 from dataclasses import dataclass
 
@@ -15,3 +15,15 @@ class ResilienceGate:
     MIN_PROFITABLE_REGIMES: int = 2
     MAX_FRAGILITY: float = 0.4
     MIN_RESILIENCE_SCORE: float = 0.3
+
+
+@dataclass(frozen=True)
+class RobustnessGate:
+    """Monte Carlo, CPCV/PBO, and sensitivity thresholds (SPEC §4 Stage 4)."""
+
+    MAX_MC_DD_P95: float = 40.0
+    MAX_PROB_DD_GT_30: float = 0.25
+    MAX_PBO: float = 0.30
+    CAUTION_PBO: float = 0.15
+    MAX_PARAM_SENSITIVITY: float = 0.4
+    MIN_RETURN_P10: float = -50.0

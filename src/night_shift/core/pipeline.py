@@ -12,8 +12,10 @@ from night_shift.reporting.report import generate_report
 from night_shift.scoring.resilience import score_candidates
 from night_shift.search.darwinian import darwinian_evolution
 from night_shift.search.grid import coarse_grid_search, fine_refinement, run_experiments
+from night_shift.reporting.artifacts import get_run_dir
 from night_shift.validation.evaluate import evaluate_candidate
 from night_shift.validation.folds import create_folds
+from night_shift.validation.robustness import run_robustness_phase
 
 
 def run_night_shift(
@@ -172,8 +174,30 @@ def run_night_shift(
             )
             all_results[token].extend(exp_results)
 
+    # Stage 4d: Robustness gates (Monte Carlo + CPCV/PBO + sensitivity)
+    robustness_results: Dict = {}
+    if config.get("robustness", {}).get("enabled", False):
+        log("\n── Stage 4d: Robustness Gates ──")
+        run_dir = get_run_dir(config.get("output_dir"))
+        robustness_results = run_robustness_phase(
+            token_data,
+            all_results,
+            model,
+            folds,
+            config,
+            output_dir=run_dir / "robustness",
+        )
+        passed = sum(
+            1
+            for token_results in robustness_results.values()
+            for r in token_results
+            if r.get("verdict", {}).get("passed")
+        )
+        total = sum(len(v) for v in robustness_results.values())
+        log(f"  Robustness: {passed}/{total} candidates passed all gates")
+
     # Resilience scoring
-    log("\n── Stage 4d: Resilience Scoring ──")
+    log("\n── Stage 4e: Resilience Scoring ──")
     resilience_rankings = {}
     for token, results in all_results.items():
         survivors = [r for r in results if not r.rejected]
@@ -193,6 +217,7 @@ def run_night_shift(
         output_dir=config.get("output_dir"),
         resilience_rankings=resilience_rankings,
         data_sources=sources,
+        robustness_results=robustness_results,
     )
     log(f"Report written to {run_dir}")
     log(f"Total runtime: {run_seconds / 60:.1f} minutes")
@@ -217,5 +242,6 @@ def run_night_shift(
         "runtime_seconds": run_seconds,
         "results": all_results,
         "resilience_rankings": resilience_rankings,
+        "robustness_results": robustness_results,
         "best": best,
     }

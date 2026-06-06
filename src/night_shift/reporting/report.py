@@ -22,6 +22,7 @@ def generate_report(
     output_dir: str | Path | None = None,
     resilience_rankings: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     data_sources: Optional[Dict[str, str]] = None,
+    robustness_results: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> Path:
     """Write markdown report and JSON summary to the run directory."""
     run_dir = get_run_dir(output_dir)
@@ -87,6 +88,24 @@ def generate_report(
             ]
         )
 
+    if robustness_results:
+        lines.extend(["## Robustness Gate Results", ""])
+        for token, analyses in robustness_results.items():
+            if not analyses:
+                continue
+            best = analyses[0]
+            verdict = best.get("verdict", {})
+            mc = best.get("monte_carlo", {})
+            cpcv = best.get("cpcv", {})
+            sens = best.get("sensitivity", {})
+            lines.append(
+                f"- **{token}**: {verdict.get('overall', 'N/A')} — "
+                f"MC DD p95={mc.get('dd_p95', 0):.1f}%, "
+                f"PBO={cpcv.get('pbo', 0):.1%}, "
+                f"sensitivity={sens.get('max_sensitivity', 0):.2f}"
+            )
+        lines.append("")
+
     if resilience_rankings:
         lines.extend(["## Resilience Rankings by Token", ""])
         for token, rankings in resilience_rankings.items():
@@ -107,6 +126,19 @@ def generate_report(
         "dry_run": config.get("dry_run", True),
         "tokens": list(all_results.keys()),
         "data_sources": data_sources or {},
+        "robustness_summary": {
+            token: [
+                {
+                    "verdict": a.get("verdict", {}).get("overall"),
+                    "passed": a.get("verdict", {}).get("passed"),
+                    "mc_dd_p95": a.get("monte_carlo", {}).get("dd_p95"),
+                    "pbo": a.get("cpcv", {}).get("pbo"),
+                    "max_sensitivity": a.get("sensitivity", {}).get("max_sensitivity"),
+                }
+                for a in analyses
+            ]
+            for token, analyses in (robustness_results or {}).items()
+        },
         "top_candidates": [
             {
                 "rank": i,
