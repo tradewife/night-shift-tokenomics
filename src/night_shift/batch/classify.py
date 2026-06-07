@@ -24,7 +24,7 @@ from night_shift.export.observatory import (
 def _export_dir(base: str | Path, run_id: Optional[str] = None) -> Path:
     base_path = Path(base)
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return base_path / f"v1_{run_id}"
+    return base_path / f"v2_{run_id}"
 
 
 def _batch_manifest_path(export_dir: Path) -> Path:

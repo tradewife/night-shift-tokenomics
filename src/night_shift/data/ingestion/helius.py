@@ -13,6 +13,7 @@ from night_shift.core.logging import log
 HELIUS_BASE = "https://api-mainnet.helius-rpc.com/v0"
 DEFAULT_HISTORY_DAYS = 180
 DEFAULT_REQUEST_DELAY_S = 0.25
+REQUEST_TIMEOUT_S = 120
 MAX_RETRIES = 5
 
 
@@ -39,9 +40,17 @@ def fetch_address_transactions(
     for attempt in range(MAX_RETRIES):
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=45) as resp:
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S) as resp:
                 data = json.loads(resp.read().decode())
                 return data if isinstance(data, list) else []
+        except TimeoutError:
+            if attempt < MAX_RETRIES - 1:
+                sleep_s = DEFAULT_REQUEST_DELAY_S * (2**attempt)
+                log(f"  Helius timeout for {address[:12]}... retry in {sleep_s:.1f}s")
+                time.sleep(sleep_s)
+                continue
+            log(f"  Helius timeout for {address[:12]}... after {MAX_RETRIES} attempts")
+            return []
         except urllib.error.HTTPError as exc:
             if exc.code in (429, 500, 502, 503, 504) and attempt < MAX_RETRIES - 1:
                 sleep_s = DEFAULT_REQUEST_DELAY_S * (2**attempt)
@@ -116,6 +125,8 @@ def fetch_token_daily_history(
 
         txs = fetch_address_transactions(mint, api_key=key, limit=100, before=before)
         page += 1
+        if page == 1 or page % 10 == 0:
+            log(f"  Helius page {page} for {mint[:12]}... ({len(all_events)} events so far)")
         if not txs:
             break
 

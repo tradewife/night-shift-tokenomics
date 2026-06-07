@@ -64,7 +64,8 @@ def run_backfill_phase(
         log(f"  [{symbol}] Backfill attempt {attempts}...")
 
         try:
-            cached_bars = len(read_cache(mint, cache_path) or [])
+            cached_df = read_cache(mint, cache_path)
+            cached_bars = len(cached_df) if cached_df is not None else 0
             target_bars = max(min_bars, int(history_days * 0.85))
             needs_fetch = force or cached_bars < target_bars
             df = _load_single_token(
@@ -132,7 +133,11 @@ def run_backfill_phase(
                 "mint": mint,
                 "status": "failed",
                 "source": "failed",
-                "bars": len(read_cache(mint, cache_path) or []),
+                "bars": (
+                    len(cached_df)
+                    if (cached_df := read_cache(mint, cache_path)) is not None
+                    else 0
+                ),
                 "attempts": attempts,
                 "error": str(exc),
             }
