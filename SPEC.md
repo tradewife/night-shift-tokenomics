@@ -13,7 +13,7 @@
 
 The original, working Night Shift implementation (and its supporting architecture) already exists inside the Resilient Token Protocol repository at:
 
-**`/home/kt/projects/tabs/resilient-token-protocol`**
+**`/home/kt/projects/rtp/resilient-token-protocol`**
 
 ### Instructions for the AI Coding Agent:
 
