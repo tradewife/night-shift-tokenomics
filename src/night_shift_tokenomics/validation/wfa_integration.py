@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, List, Optional
 
-from research.engine.validation import (
+from .validation import  # vendored from Mission 000 (
     CandidateResult,
     DarwinianConfig,
     FoldEvaluator,
