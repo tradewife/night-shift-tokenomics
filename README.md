@@ -77,7 +77,3 @@ First public Observatory dataset is pending a full Helius backfill on real on-ch
 Kate / tradewife  
 X: [@trade_wife](https://x.com/trade_wife)  
 GitHub: [tradewife](https://github.com/tradewife)
-
----
-
-*Built with the "STFU and Build" ethos. Brutal validation over hype.*
